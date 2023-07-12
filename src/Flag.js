@@ -1,7 +1,8 @@
+import { TokenBucketLimiter } from '@dutu/rate-limiter';
+import { lookup as IpfsGeoIpLookup } from 'ipfs-geoip';
 import { Log } from './Log';
 import { UiComponent } from './UiComponent';
-import { ipfsHttpClient } from './ipfsHttpClient';
-import { TokenBucketLimiter } from '@dutu/rate-limiter';
+import { DEFAULT_IPFS_GATEWAY } from './constants';
 const log = new Log('Flag');
 class Flag extends UiComponent {
     constructor(parent, hostname) {
@@ -60,7 +61,7 @@ class Flag extends UiComponent {
         if (url == null) {
             // No available tokens...
             log.info('we awaited tokens, but could not retrieve any.. restarting dnsRequest');
-            return await this.waitForAvailableEndpoint();
+            return this.waitForAvailableEndpoint();
         }
         else {
             return url;
@@ -78,14 +79,15 @@ class Flag extends UiComponent {
             await this.handleDnsQueryResponse(responseJson);
         }
         catch (err) {
-            log.error('problem submitting DNS request', err);
+            log.error('problem submitting DNS request', url, err);
             this.onError();
         }
     }
     async handleDnsQueryResponse(response) {
         if (response.Answer == null) {
             log.error('Response does not contain the "Answer" property:', response);
-            return this.onError();
+            this.onError();
+            return;
         }
         let ip = null;
         for (let i = 0; i < response.Answer.length && ip == null; i++) {
@@ -96,7 +98,7 @@ class Flag extends UiComponent {
         }
         if (ip != null) {
             try {
-                const geoipResponse = await window.IpfsGeoip.lookup(ipfsHttpClient, ip);
+                const geoipResponse = await IpfsGeoIpLookup(DEFAULT_IPFS_GATEWAY, ip);
                 if (geoipResponse?.country_code != null) {
                     this.onResponse(geoipResponse);
                     geoipResponse.time = Date.now();
